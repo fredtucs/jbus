@@ -62,11 +62,21 @@ Example
 
 <h5>Post event:</h5>
 
+Post event all subscriber
 ```java
 
     jbus.post(new UserEvent());
 
 ```
+
+Post event an specific subscriber class
+```java
+
+    jbus.post(new UserEvent(), Listener.class);
+
+```
+
+
 
 It is that simple.
 
