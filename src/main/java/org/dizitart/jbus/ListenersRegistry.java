@@ -14,13 +14,13 @@
  * limitations under the License.
  *
  */
-
 package org.dizitart.jbus;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.lang.ref.WeakReference;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -35,24 +35,25 @@ import static org.dizitart.jbus.ReflectionUtil.findSubscribedMethods;
  * @author Anindya Chatterjee.
  */
 class ListenersRegistry {
+
     private Logger logger = LoggerFactory.getLogger(getClass());
 
     // keep track of event and its registered subscribed methods
-    private Map<Class<?>, List<ListenerMethod>> registry =
-            new ConcurrentHashMap<Class<?>, List<ListenerMethod>>();
+    private Map<Class<?>, List<ListenerMethod>> registry
+            = new ConcurrentHashMap<Class<?>, List<ListenerMethod>>();
     // cache to keep track of all strong referenced listener object
     private final List<Object> subscriberCache = new CopyOnWriteArrayList<Object>();
     // cache to keep track of all weak referenced listener object
-    private final List<WeakReference<Object>> weakSubscriberCache =
-            new CopyOnWriteArrayList<WeakReference<Object>>();
+    private final List<WeakReference<Object>> weakSubscriberCache
+            = new CopyOnWriteArrayList<WeakReference<Object>>();
     private final Object lock = new Object();
 
     /**
-     * Registers an object in the listener registry. If weak is set,
-     * it will create a weak reference of the listener object and register.
-     * Otherwise it will store a strong reference of the listener object.
+     * Registers an object in the listener registry. If weak is set, it will create a weak reference of the listener
+     * object and register. Otherwise it will store a strong reference of the listener object.
      *
-     * */
+     *
+     */
     void register(Object listener, boolean weak) {
         WeakReference<Object> weakListener = null;
 
@@ -122,7 +123,8 @@ class ListenersRegistry {
 
     /**
      * De-registers a listener object.
-     * */
+     *
+     */
     void deregister(Object listener) {
         // synchronize the search. search and remove are put in one place
         // to avoid unnecessary looping.
@@ -174,21 +176,45 @@ class ListenersRegistry {
 
     /**
      * Get all registered subscriber information for an event.
-     * */
+     *
+     */
     List<ListenerMethod> getSubscribers(Object event) {
-        if (event != null) {
-            Class<?> eventType = event.getClass();
-            // loop through the registry to get all subscribed method
-            if (registry.containsKey(eventType)) {
-                return registry.get(eventType);
+        if (event == null) {
+            throw new JBusException("Event value is null or Target value is null");
+        }
+        
+        Class<?> eventType = event.getClass();
+        // loop through the registry to get all subscribed method
+        if (registry.containsKey(eventType)) {
+            return registry.get(eventType);
+        }
+        
+        return null;
+    }
+
+    List<ListenerMethod> getSubscribers(Object event, Class<?> target) {
+
+        if (event == null || target == null) {
+            throw new JBusException("Event value is null or Target value is null");
+        }
+
+        Class<?> eventType = event.getClass();
+        if (registry.containsKey(eventType)) {
+            List<ListenerMethod> listenerMethods = registry.get(eventType);
+            for (ListenerMethod listenerMethod : listenerMethods) {
+                if (listenerMethod.target.getClass().equals(target)) {
+                    return Arrays.asList(listenerMethod);
+                }
             }
         }
+
         return null;
     }
 
     /**
      * Checks if an object's weak reference is kept in the cache or not.
-     * */
+     *
+     */
     private boolean containsWeak(Object listener) {
         for (WeakReference<Object> weakRef : weakSubscriberCache) {
             Object element = weakRef.get();
@@ -211,7 +237,8 @@ class ListenersRegistry {
 
     /**
      * Removes a weak referenced listener from the bus runtime.
-     * */
+     *
+     */
     void removeWeakListener(WeakReference<?> weakRef) {
         // first remove it from cache
         if (weakSubscriberCache.remove(weakRef)) {
@@ -230,12 +257,13 @@ class ListenersRegistry {
     }
 
     /**
-     * Removes the listener from the registry. It also cleans up the registry,
-     * while iterating, if it finds any weak reference which does not hold any
-     * object reference any more, i.e. the underlying object has been garbage collected.
+     * Removes the listener from the registry. It also cleans up the registry, while iterating, if it finds any weak
+     * reference which does not hold any object reference any more, i.e. the underlying object has been garbage
+     * collected.
      *
      * @param confirmedWeak if we know listener was registered as a weak reference
-     * */
+     *
+     */
     private void removeFromRegistry(Object listener, boolean confirmedWeak) {
         // iterate the whole registry map
         for (Map.Entry<Class<?>, List<ListenerMethod>> entry : registry.entrySet()) {
@@ -251,13 +279,13 @@ class ListenersRegistry {
                     if (reference == null) {
                         // remove from event subscribers list
                         if (subscribedMethods.remove(listenerMethod)) {
-                            logger.debug(listenerMethod + " has been un-registered as the " +
-                                    "target has been garbage collected.");
+                            logger.debug(listenerMethod + " has been un-registered as the "
+                                    + "target has been garbage collected.");
                         }
                         // remove that invalid weak reference from cache
                         if (weakSubscriberCache.remove(listenerMethod.weakListener)) {
-                            logger.debug(listenerMethod.weakListener +
-                                    " removed from cache as underlying object does not exist anymore.");
+                            logger.debug(listenerMethod.weakListener
+                                    + " removed from cache as underlying object does not exist anymore.");
                         }
                     } else if (reference.equals(listener)) {
                         if (subscribedMethods.remove(listenerMethod)) {
